@@ -1,0 +1,42 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.local
+
+# JavaScript dependencies and build output
+node_modules/
+**/node_modules/
+dist/
+dist-ssr/
+.output/
+**/.output/
+.tanstack/
+**/.tanstack/
+.nitro/
+**/.nitro/
+.wrangler/
+**/.wrangler/
+.vite/
+**/.vite/
+
+# Python caches and generated artifacts
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+
+# Logs, temporary files, and operating-system metadata
+*.log
+logs/
+tmp/
+temp/
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
