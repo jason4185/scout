@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { createTransactionKit, type TransactionKit } from "@genlayer/transaction-kit";
 import type { Address } from "viem";
 import { Button } from "@/components/ui/button";
@@ -6,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { getConnectedClient, getInjectedProvider, type BrowserProvider } from "./client";
 import {
   GENLAYER_CONFIG_ERROR,
+  GENLAYER_NETWORK_CONFIG_ERROR,
   STUDIO_NEXT_CHAIN_ID,
   STUDIO_NEXT_EXPLORER_URL,
   STUDIO_NEXT_RPC_URL,
@@ -104,9 +113,11 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [balance, setBalance] = useState<bigint>();
   const [status, setStatus] = useState<WalletStatus>("disconnected");
   const [error, setError] = useState<string>();
+  const refreshSequence = useRef(0);
 
   const refresh = useCallback(
     async (nextProvider?: BrowserProvider) => {
+      const sequence = ++refreshSequence.current;
       const injected = nextProvider ?? provider ?? getInjectedProvider();
       if (!injected) {
         setProvider(undefined);
@@ -116,7 +127,14 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
         setStatus("disconnected");
         return;
       }
-      const result = await readWallet(injected);
+      let result: Awaited<ReturnType<typeof readWallet>>;
+      try {
+        result = await readWallet(injected);
+      } catch (reason) {
+        if (sequence !== refreshSequence.current) return;
+        throw reason;
+      }
+      if (sequence !== refreshSequence.current) return;
       setProvider(injected);
       setAddress(result.address);
       setChainId(result.chainId);
@@ -128,6 +146,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
             : "wrong-network"
           : "disconnected",
       );
+      setError(undefined);
     },
     [provider],
   );
@@ -150,15 +169,12 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const connect = useCallback(async () => {
-    if (GENLAYER_CONFIG_ERROR) {
-      setError(GENLAYER_CONFIG_ERROR);
-      return;
-    }
     const injected = getInjectedProvider();
     if (!injected) {
       setError("Install an injected EIP-1193 wallet such as MetaMask to connect.");
       return;
     }
+    refreshSequence.current += 1;
     setStatus("connecting");
     setError(undefined);
     try {
@@ -171,6 +187,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const disconnect = useCallback(() => {
+    refreshSequence.current += 1;
     setAddress(undefined);
     setChainId(undefined);
     setBalance(undefined);
@@ -181,6 +198,10 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   const switchToStudioNext = useCallback(async () => {
     const injected = provider ?? getInjectedProvider();
     if (!injected) return connect();
+    if (GENLAYER_NETWORK_CONFIG_ERROR) {
+      setError(GENLAYER_NETWORK_CONFIG_ERROR);
+      return;
+    }
     setError(undefined);
     try {
       await switchWallet(injected);
@@ -192,7 +213,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   const kit = useMemo<TransactionKit | undefined>(
     () =>
-      provider && address && status === "connected"
+      provider && address && status === "connected" && !GENLAYER_CONFIG_ERROR
         ? createTransactionKit({
             chain: studioNext,
             provider: instrumentWalletProvider(provider, address, STUDIO_NEXT_CHAIN_ID),
@@ -203,7 +224,7 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
   );
   const connectedClient = useMemo(
     () =>
-      provider && address && status === "connected"
+      provider && address && status === "connected" && !GENLAYER_CONFIG_ERROR
         ? getConnectedClient(
             instrumentWalletProvider(provider, address, STUDIO_NEXT_CHAIN_ID),
             address,
@@ -272,9 +293,16 @@ export function WalletControl({ dark = false }: { dark?: boolean }) {
     );
   if (wallet.status === "wrong-network")
     return (
-      <Button size="sm" variant="outline" onClick={() => void wallet.switchToStudioNext()}>
-        Switch to Studio Next
-      </Button>
+      <div className="flex flex-col items-end gap-1">
+        <Button size="sm" variant="outline" onClick={() => void wallet.switchToStudioNext()}>
+          Switch to Studio Next
+        </Button>
+        {wallet.error && (
+          <p className="max-w-64 text-right text-[11px] leading-4 text-destructive" role="alert">
+            {wallet.error}
+          </p>
+        )}
+      </div>
     );
   if (wallet.status === "connected" && wallet.address) {
     return (
@@ -338,6 +366,12 @@ export function WalletControl({ dark = false }: { dark?: boolean }) {
                 Disconnect
               </Button>
             </div>
+            {GENLAYER_CONFIG_ERROR && (
+              <p className="mt-3 text-xs text-destructive" role="alert">
+                Wallet connected, but this deployment is missing required SCOUT configuration.{" "}
+                {GENLAYER_CONFIG_ERROR}
+              </p>
+            )}
             {wallet.error && (
               <p className="mt-3 text-xs text-destructive" role="alert">
                 {wallet.error}
@@ -353,7 +387,11 @@ export function WalletControl({ dark = false }: { dark?: boolean }) {
       <Button variant="outline" size="sm" onClick={() => void wallet.connect()}>
         Connect wallet
       </Button>
-      {wallet.error && <span className="sr-only">{wallet.error}</span>}
+      {wallet.error && (
+        <p className="max-w-64 text-xs leading-4 text-destructive" role="alert">
+          {wallet.error}
+        </p>
+      )}
     </div>
   );
 }

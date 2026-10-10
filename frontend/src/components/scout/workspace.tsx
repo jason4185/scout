@@ -172,6 +172,10 @@ export function ScoutWorkspace({
   const [notice, setNotice] = useState("");
   const invalidate = () => void queryClient.invalidateQueries({ queryKey: key });
   function queueWrite(next: import("@/lib/genlayer/scout").ContractWrite) {
+    if (GENLAYER_CONFIG_ERROR) {
+      setError(GENLAYER_CONFIG_ERROR);
+      return;
+    }
     if (!wallet.kit || !wallet.connectedClient) {
       setError(
         wallet.status === "wrong-network"

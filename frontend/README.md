@@ -22,6 +22,11 @@ VITE_SCOUT_CONTRACT_ADDRESS=0x55012d7857154C8585CfD68eDf70736760D317A6
 
 No deployment or funded transaction is performed by the frontend build.
 
+For Vercel, add all three variables to the project’s **Production** environment (and **Preview** if
+preview deployments should use the contract), then redeploy. `VITE_*` values are embedded at build
+time; changing them in Vercel does not affect an already-built deployment. Wallet authorization is
+client-only, while contract reads and writes remain disabled until this public configuration is valid.
+
 ## Development
 
 ```sh

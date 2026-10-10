@@ -15,7 +15,7 @@ export const SCOUT_CONTRACT_ADDRESS = (
 
 const configuredChain = import.meta.env["VITE_GENLAYER_CHAIN_ID"] as string | undefined;
 const parsedChain = configuredChain ? Number(configuredChain) : Number.NaN;
-export const GENLAYER_CONFIG_ERROR = [
+const networkConfigurationErrors = [
   configuredChain && Number.isSafeInteger(parsedChain) && parsedChain === STUDIO_NEXT_CHAIN_ID
     ? undefined
     : `VITE_GENLAYER_CHAIN_ID must be ${STUDIO_NEXT_CHAIN_ID}.`,
@@ -24,13 +24,23 @@ export const GENLAYER_CONFIG_ERROR = [
       ? undefined
       : "Studio Next RPC must use HTTPS."
     : "VITE_GENLAYER_RPC_URL is missing.",
+].filter((item): item is string => Boolean(item));
+
+const contractConfigurationErrors = [
   isAddress(SCOUT_CONTRACT_ADDRESS) &&
   SCOUT_CONTRACT_ADDRESS !== "0x0000000000000000000000000000000000000000"
     ? undefined
     : "SCOUT contract address is missing or invalid.",
-]
-  .filter((item): item is string => Boolean(item))
-  .join(" ");
+].filter((item): item is string => Boolean(item));
+
+/** Configuration needed to construct a valid Studio Next chain client. */
+export const GENLAYER_NETWORK_CONFIG_ERROR = networkConfigurationErrors.join(" ");
+
+/** Configuration needed for contract reads and writes. */
+export const GENLAYER_CONFIG_ERROR = [
+  ...networkConfigurationErrors,
+  ...contractConfigurationErrors,
+].join(" ");
 
 export const studioNext = {
   ...studioDevnet,
